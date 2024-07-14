@@ -1,0 +1,57 @@
+#! /usr/bin/bash
+
+echo "Hello in your database managment system what would you like to do: "
+select command in CreateDB ListDatabases ConnectToDatabases DropDatabase exit
+do
+case $command in 
+"1" | "CreateDB" )
+    read -p "Enter the name of database you want to create: " dirname
+    if [ -e $dirname ]
+    then
+        echo "database already exists!"
+    else
+        mkdir $dirname
+        echo "Database created sucessfully."
+    fi
+    ;;
+"ListDatabases")
+    DBS=$(ls -l | grep ^d | cut -d " " -f 9)
+    if [[ $DBS ]]
+    then
+        ls -l | grep ^d | cut -d " " -f 9
+    else
+        echo "No databases exists."
+    fi
+    ;;
+"ConnectToDatabases")
+    read -p "Which database would you like to connect to?" dbs
+    if [ -e $dbs ]
+    then 
+        cd $dbs
+        echo "Connected to Database "${dbs}
+    else
+        echo "Database doesn't exist."
+    fi
+    ;;
+"DropDatabase")
+    read -p "Enter the name of database you would like to delete: " dbs
+    if [ -e $dbs ]
+    then
+        read -p "Are you sure you want to delete $dbs database! (y/n): " ans
+        if [ $ans == "y" ]
+        then
+            rm -r ${dbs}
+            echo "Database $dbs has been deleted sucessfully."
+        else
+            echo "Deletion cancelled. Nothing deleted."
+        fi
+    else
+        echo "Database doesn't exists."
+    fi
+    ;;
+"exit")
+    echo "Exiting..."
+    break
+    ;;
+esac
+done
