@@ -10,8 +10,17 @@ case $command in
     then
         echo "database already exists!"
     else
-        mkdir $dirname
-        echo "Database created sucessfully."
+      dirname="${dirname// /_}" # if enter name with space replace it with _ 
+      if [[ -z "$dirname" ]] 
+      then # if enter empty name.
+         echo "No directory name provided. Please enter a valid name."
+      elif [[ "$dirname" =~ ^[0-9] || "$dirname" =~ ^[^[:alnum:]_]+ ]]
+       then # if start with numbers and special characters
+        echo "Please enter a valid name (cannot start with a number or Special character)."
+    else
+      mkdir "$dirname"
+      echo "Database created successfully."
+     fi
     fi
     ;;
 "ListDatabases")
