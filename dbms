@@ -5,29 +5,43 @@ select command in CreateDB ListDatabases ConnectToDatabases DropDatabase exit
 do
 case $command in 
 "1" | "CreateDB" )
+    # read -p "Enter the name of database you want to create: " dirname
+    # if [ -e $dirname ]
+    # then
+    #     echo "database already exists!"
+    # else
+    #   dirname="${dirname// /_}" # if enter name with space replace it with _ 
+    #   if [ -z "$dirname" ]
+    #   then # if enter empty name.
+    #      echo "No directory name provided. Please enter a valid name."
+    #   elif [[ "$dirname" =~ ^[0-9] || "$dirname" =~ ^[^[:alnum:]_]+ ]]
+    #    then # if start with numbers and special characters
+    #     echo "Please enter a valid name (cannot start with a number or Special character)."
+    # else
+    #   mkdir "$dirname"
+    #   echo "Database created successfully."
+    #  fi
+    # fi
     read -p "Enter the name of database you want to create: " dirname
-    if [ -e $dirname ]
+    dirname=$(echo "$dirname" | tr ' ' '_') 
+    if [[ "$dirname" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]
     then
-        echo "database already exists!"
+        if [ -e $dirname ]
+        then
+            echo "database already exists!"
+        else
+            mkdir "$dirname"
+            echo "$dirname database created successfully."
+        fi
     else
-      dirname="${dirname// /_}" # if enter name with space replace it with _ 
-      if [[ -z "$dirname" ]] 
-      then # if enter empty name.
-         echo "No directory name provided. Please enter a valid name."
-      elif [[ "$dirname" =~ ^[0-9] || "$dirname" =~ ^[^[:alnum:]_]+ ]]
-       then # if start with numbers and special characters
-        echo "Please enter a valid name (cannot start with a number or Special character)."
-    else
-      mkdir "$dirname"
-      echo "Database created successfully."
-     fi
+        echo "Invalid input."
     fi
     ;;
 "ListDatabases")
     DBS=$(ls -l | grep ^d | cut -d " " -f 9)
     if [[ $DBS ]]
     then
-        ls -l | grep ^d | cut -d " " -f 9
+        echo ${DBS}
     else
         echo "No databases exists."
     fi
