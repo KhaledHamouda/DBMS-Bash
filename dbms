@@ -1,33 +1,56 @@
 #! /usr/bin/bash
 
+function validateArgument {                                                                                     # add function to validate DataBase_Name
+    if [ -z "$1" ]
+    then
+        echo "The name field cannot be left empty"
+        return 1
+    elif [[ "$1" =~ ^[0-9] ]]
+    then
+        echo "Name should not begin with a number"
+        return 1
+    elif [[ "$1" = *" "* ]]
+    then
+      echo "Name Shouldn't Have Spaces"
+        return 1
+    elif [[ "$1" =~ [^a-zA-Z0-9_] ]]
+    then
+        echo "Name Shouldn't Have Special Characters"
+        return 1
+    fi
+    
+}
+
 echo "Hello in your database managment system what would you like to do: "
 select command in CreateDB ListDatabases ConnectToDatabases DropDatabase exit
 do
 case $command in 
 "1" | "CreateDB" )
-    read -p "Enter the name of database you want to create: " dirname
-    if [ -e $dirname ]
-    then
-        echo "database already exists!"
-    else
-      dirname="${dirname// /_}" # if enter name with space replace it with _ 
-      if [[ -z "$dirname" ]] 
-      then # if enter empty name.
-         echo "No directory name provided. Please enter a valid name."
-      elif [[ "$dirname" =~ ^[0-9] || "$dirname" =~ ^[^[:alnum:]_]+ ]]
-       then # if start with numbers and special characters
-        echo "Please enter a valid name (cannot start with a number or Special character)."
-    else
-      mkdir "$dirname"
-      echo "Database created successfully."
-     fi
+	while true
+    do
+    read -p "Enter the name of database you want to create: " dirname 
+	validateArgument $dirname                                                     # write fun validtion and db_name
+	 dirname=$(echo "$dirname" | tr ' ' '_')                                                     # replace space with (_)
+     
+        if [ $? -eq 0 ]                                                            # check if command successed will be exit 
+        then
+            break
+        fi
+    done
+        if [ -e $dirname ]
+        then
+            echo "database already exists!"
+        else
+            mkdir "$dirname"
+            echo "Database created successfully."
     fi
     ;;
+
 "ListDatabases")
     DBS=$(ls -l | grep ^d | cut -d " " -f 9)
     if [[ $DBS ]]
     then
-        ls -l | grep ^d | cut -d " " -f 9
+        echo ${DBS}
     else
         echo "No databases exists."
     fi

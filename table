@@ -1,0 +1,47 @@
+#! /bin/bash
+ echo "Hello in your database managment system what would you like to do: "
+select command in CreateTable ListTables DropTable InsertIntoTables SelectFromTable UpdateTable DeleteFromTable Exit
+do
+case $command in 
+"CreateTable" )
+	read -p "Enter the name of Table: " tablename
+	    tablename=$(echo "$tablename" | tr ' ' '_')  # replace space with (_)
+	    if [[ "$tablename" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]
+	    then
+		if [ -e $tablename ]
+		then
+		    echo "Table already exists!"
+		else
+		    touch  ~/DBMS-Bash/"$tablename"
+		    echo "Table created successfully."
+		fi
+	    else
+		echo "Invalid input."
+	    fi
+	;;
+"ListTables")
+	    if [[ $table ]]
+	    then
+		ls -l ~/DBMS-Bash
+	    else
+		echo "Table Not Exists."
+	    fi
+;;
+"DropTable")
+;;
+"InsertIntoTables")
+;;
+"SelectFromTable")
+;;
+"UpdateTable")
+;;
+"DeleteFromTable ")
+;;
+"Exit")
+	echo "Exiting..."
+	break 
+;;
+*)
+echo "Invalid Selection"
+esac
+done
