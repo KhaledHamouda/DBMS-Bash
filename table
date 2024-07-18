@@ -1,4 +1,8 @@
 #! /bin/bash
+
+connectedDbs=$1
+
+
  echo "Hello in your database managment system what would you like to do: "
 select command in CreateTable ListTables DropTable InsertIntoTables SelectFromTable UpdateTable DeleteFromTable Exit
 do
@@ -12,7 +16,7 @@ case $command in
 		then
 		    echo "Table already exists!"
 		else
-		    touch  ~/DBMS-Bash/"$tablename"
+		    touch  ~/DBMS-Bash/$connectedDbs/"$tablename"
 		    echo "Table created successfully."
 		fi
 	    else
@@ -20,9 +24,10 @@ case $command in
 	    fi
 	;;
 "ListTables")
-	    if [[ $table ]]
+		output=$(ls -l ~/DBMS-Bash/$connectedDbs | grep ^- | cut -d " " -f 9)
+	    if [[ $output ]]
 	    then
-		ls -l ~/DBMS-Bash
+		echo ${output}
 	    else
 		echo "Table Not Exists."
 	    fi
