@@ -123,20 +123,20 @@ selectFromTable(){                                   #function to select from Ta
         fi
     done
     
-    if [ ! -d "$tablename" ]
+    if [ ! -f "$tablename" ]
     then
         echo "Table Doesn't Exist"
         return
     fi
     
-    if [ -s "$tablename/$$tableName.txt" ]
+    if [ -s "$$tableName" ]
     then
         echo "The $tablename is empty."
         return
     fi
     
-    tail -1 ${tablename}/${tablename}-meta.txt | sed 's/:/\t/g'
-    sed 's/:/\t/g'  ${tablename}/${tablename}.txt && echo
+    tail -1 ${tablename}.meta | sed 's/:/\t/g'
+    sed 's/:/\t/g' ${tablename} && echo
     
 }
 
@@ -164,7 +164,58 @@ listTables(){
 		fi
 }
 UpdateTable(){
-echo "update"
+typeset tablename is_pk col_name oldValue newValue colnum
+    
+    if [ -z "$(ls)" ]
+    then
+        echo "No Tables to update it"
+        return
+    fi
+    
+    while true
+    do
+        read -p "Enter Table Name: " tablename
+        validateArgument $tablename
+        if [ $? -eq 0 ]
+        then
+            break
+        fi
+    done
+    
+    if [ ! -f "$tablename" ]
+    then
+        echo "${tablename} Doesn't Exist"
+        return
+    fi
+    
+    if [ -z "$(cat "$tablename")" ]
+    then
+        echo "The $tablename is empty."
+        return
+    fi
+    
+    read -p "Enter Primary key : " is_pk
+    
+    if [ -z "$(grep ^${is_pk} ${tablename})" ]
+    then
+        echo "The primary key doesn't Exist"
+        return
+    fi
+    
+    read -p "Enter column name: " colName
+    
+    if [ -z "$(grep ${col_name} ${tablename}.meta)" ]
+    then
+        echo "The ${col_name} column doesn't Exist"
+        return
+    fi
+    
+    colnum=$(awk -F: '{ for (i=1; i<=NF; i++) { if ($i == "'"$col_name"'") { print i; exit } } }' ${tablename}.meta)
+    oldValue=$( grep "^${is_pk}" ${tablename} | cut -d ':' -f $colnum )
+    
+    read -p "Enter new value: " newValue
+    
+    sed -i "/^$pkValue/s/$oldValue/$newValue/" ${tableName}
 }
 DeleteFromTable(){
 echo "delete"
