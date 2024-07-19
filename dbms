@@ -53,7 +53,7 @@ case $command in
         done
         ;;
 "ListDatabases")
-    DBS=$(ls -l | grep ^d | cut -d " " -f 9)
+    DBS=$(ls -l | awk '/^d/ {print $NF}')
     if [[ $DBS ]]
     then
         echo ${DBS}
@@ -63,12 +63,17 @@ case $command in
     ;;
 "ConnectToDatabases")
     read -p "Which database would you like to connect to?" dbs
-    if [ -e $dbs ]
-    then 
-        echo "Connected to Database "${dbs}
-        (./table $dbs)
+    if [ -z $dbs ]
+    then
+        echo "Empty input."
     else
-        echo "Database doesn't exist."
+        if [ -e $dbs ]
+        then 
+            echo "Connected to Database "${dbs}
+            (./table $dbs)
+        else
+            echo "Database doesn't exist."
+        fi
     fi
     ;;
 "DropDatabase")
