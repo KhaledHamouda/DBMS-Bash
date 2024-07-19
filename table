@@ -2,48 +2,129 @@
 
 connectedDbs=$1
 
+createTable(){
+	local db_dir="$connectedDbs"
+    local tablename
+    local col_name
+    local col_type
+    local is_pk
+    local add_more
+    local pk_col
 
- echo "Hello in your database managment system what would you like to do: "
-select command in CreateTable ListTables DropTable InsertIntoTables SelectFromTable UpdateTable DeleteFromTable Exit
+    read -p "Enter the name of the table: " tablename
+    tablename=$(echo "$tablename" | tr ' ' '_')
+
+    if [[ ! "$tablename" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
+        echo "Invalid table name. It should start with a letter and contain only letters, numbers, and underscores."
+        return
+    fi
+
+    if [ -e ./"$db_dir/$tablename" ]; then
+        echo "Table already exists!"
+        return
+    fi
+
+    touch ./"$db_dir/$tablename"
+    touch ./"$db_dir/$tablename.meta"
+
+    pk_col=""
+
+    while true; do
+        read -p "Enter the name of the column: " col_name
+        col_name=$(echo "$col_name" | tr ' ' '_')
+        if [[ ! "$col_name" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
+            echo "Invalid column name. It should start with a letter and contain only letters, numbers, and underscores."
+            continue
+        fi
+
+        read -p "Enter the datatype of the column (int/string): " col_type
+        if [[ "$col_type" != "int" && "$col_type" != "string" ]]; then
+            echo "Invalid datatype. Please enter 'int' or 'string'."
+            continue
+        fi
+
+        
+
+        read -p "Is $col_name a primary key? (yes/no): " is_pk
+        if [[ "$is_pk" != "yes" && "$is_pk" != "no" ]]; then
+            echo "Invalid option. Please enter 'yes' or 'no'."
+            continue
+        fi
+
+        if [[ "$is_pk" == "yes" ]]; then
+            if [[ -n "$pk_col" ]]; then
+                echo "A primary key already exists. Only one primary key is allowed."
+                continue
+            else
+                pk_col=$col_name
+				echo "$col_name:$col_type" >> ./"$db_dir/$tablename.meta"
+                sed -i "/primary_key/d" ./"$db_dir/$tablename.meta"
+                echo "primary_key:$pk_col" >> ./"$db_dir/$tablename.meta"
+            fi
+		else
+				echo "$col_name:$col_type" >> ./"$db_dir/$tablename.meta"
+        fi
+
+		 while true; do
+            read -p "Do you want to add more columns? (yes/no): " add_more
+            case "$add_more" in
+                yes)
+                    break
+                    ;;
+                no)
+                    echo "Finished adding columns."
+					echo "Table $tablename created successfully."
+                    return
+                    ;;
+                *)
+                    echo "Invalid option. Please enter 'yes' or 'no'."
+                    ;;
+            esac
+        done
+    done
+}
+
+echo "Hello in your $connectedDbs database what would you like to do: "
+select command in CreateTable ListTables DropTable InsertIntoTables SelectFromTable UpdateTable DeleteFromTable QuitFromDB
 do
 case $command in 
 "CreateTable" )
-	read -p "Enter the name of Table: " tablename
-	    tablename=$(echo "$tablename" | tr ' ' '_')  # replace space with (_)
-	    if [[ "$tablename" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]
-	    then
-		if [ -e $tablename ]
-		then
-		    echo "Table already exists!"
-		else
-		    touch  ~/DBMS-Bash/$connectedDbs/"$tablename"
-		    echo "Table created successfully."
-		fi
-	    else
-		echo "Invalid input."
-	    fi
-	;;
+	createTable
+    ;;
 "ListTables")
-		output=$(ls -l ~/DBMS-Bash/$connectedDbs | grep ^- | cut -d " " -f 9)
-	    if [[ $output ]]
-	    then
-		echo ${output}
-	    else
-		echo "Table Not Exists."
-	    fi
+		output=$(ls ./$connectedDbs)
+		if [[ $output ]]
+		then
+			echo $output
+		else
+			echo "No tables exists yet. "
+		fi
 ;;
 "DropTable")
-;;
+	read -p "Enter the name of the table you want to drop: " tablename
+	if [ -z $tablename ]
+	then
+		echo "Empty input."
+	else
+		if [ -f ./"$connectedDbs/$tablename" ]; then
+			rm ./"$connectedDbs/$tablename"
+			echo "Table '$tablename' has been deleted successfully."
+		else
+			echo "Table '$tablename' does not exist."
+		fi
+	fi
+	;;
 "InsertIntoTables")
 ;;
 "SelectFromTable")
 ;;
 "UpdateTable")
+
 ;;
 "DeleteFromTable ")
 ;;
-"Exit")
-	echo "Exiting..."
+"QuitFromDB")
+	echo "Exiting from $connectedDbs database. "
 	break 
 ;;
 *)
