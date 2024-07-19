@@ -1,10 +1,29 @@
 #! /bin/bash
 
 connectedDbs=$1
+# Function to validate the database name argument
+function validateArgument {
+    if [ -z "$1" ]
+    then
+        echo "The name field cannot be left empty"
+        return 1
+    elif [[ "$1" =~ ^[0-9] ]]
+    then
+        echo "Name should not begin with a number"
+        return 1
+    elif [[ "$1" = *" "* ]]
+    then
+        echo "Name Shouldn't Have Spaces"
+        return 1
+    elif [[ "$1" =~ [^a-zA-Z0-9_] ]]
+    then
+        echo "Name Shouldn't Have Special Characters"
+        return 1
+    fi
+}
 
-# function to create table
 createTable(){
-	local db_dir="$connectedDbs"
+    local db_dir="$connectedDbs"
     local tablename
     local col_name
     local col_type
@@ -84,265 +103,44 @@ createTable(){
         done
     done
 }
-
-
-# Function to insert data into the table
-insertIntoTable() {
-    local db_dir="$connectedDbs"
-    local tablename
-    local table_file
-    local schema_file
-    local col_names=()
-    local col_types=()
-    local pk_col
-    local data
-    local pk_value
-    local valid
-
-    read -p "Enter the name of the table to insert into: " tablename
-    tablename=$(echo "$tablename" | tr ' ' '_')
-
-    table_file="$db_dir/$tablename"
-    schema_file="$db_dir/$tablename.meta"
-
-    if [ ! -e "$table_file" ]; then
-        echo "Table does not exist!"
+selectFromTable(){                                   #function to select from Table  
+	local tablename 
+	local col_name
+    
+    if [ -z "$(ls)" ]
+    then
+        echo "No Tables To Select From, Table Is Empty."
         return
     fi
-
-     while IFS=: read col_name col_type; do
-
-        # Handle primary key
-        if [[ "$col_name" == primary_key* ]]; then
-            pk_col=$col_type
-        else
-            col_names+=("$col_name")
-            col_types+=("$col_type")
-        fi
-    done < "$schema_file"
-
-    # Prompt user for data
-    while true; do
-        data=()
-        valid=true
-        
-        for i in "${!col_names[@]}"; do
-            read -p "Enter value for ${col_names[$i]} (${col_types[$i]}): " value
-            
-            # Validate data
-            case "${col_types[$i]}" in
-                int)
-					if [[ $((value)) != $value ]]; then
-					        echo "Error: Value '$value' is not a valid integer for column '${col_names[$i]}'."
-                    		valid=false
-                    		break
-					fi
-                    ;;
-                string)
-                    if [ -z $value ]
-                    then
-                        echo "empty input,try again."
-                        valid=false
-                        break
-                    else
-                        if [[ ! $value =~ [a-zA-Z]* ]]
-                        then
-                            echo "invalid string."
-                            valid=false
-                            break
-                        fi
-                    fi
-                    ;;
-                *)
-                    echo "Error: Unknown data type '${col_types[$i]}' for column '${col_names[$i]}'."
-                    valid=false
-                    break
-                    ;;
-            esac
-            record+=("$value")
-        done
-        echo ${data[@]}
-
-        if [ "$valid" = true ]; then
-            # Check if primary key value is unique
-            if [[ -n "$pk_col" ]]; then
-                echo "${col_names[@]}"
-                pk_index=$(echo "${col_names[@]}" | tr ' ' '\n' | grep -n "^$pk_col$" | cut -d: -f1)
-
-                pk_value="${record[$((pk_index - 1))]}"
-
-                echo "Checking for primary key value: $pk_col:$pk_value"
-
-                if grep "${pk_col}:${pk_value}" "$table_file"; then
-                    echo "Error: Primary key value '$pk_value' already exists."
-                    continue
-                fi
-            fi
-
-            line=""
-            for i in "${!col_names[@]}"
-            do
-                line+="${col_names[$i]}:${record[$i]},"
-            done
-
-            # Remove the trailing comma
-            line=${line%,}
-            echo "$line"
-            echo "$line" >> "$table_file"
-            
-            echo "Data inserted successfully."
-        fi
-
-        read -p "Do you want to insert more rows? (yes/no): " more
-        if [[ "$more" != "yes" ]]; then
-            echo "Finished inserting rows."
-            return
+    
+    while true
+    do
+        read -p "Enter Table Name: " tablename
+        validateArgument $tablename
+        if [ $? -eq 0 ]
+        then
+            break
         fi
     done
-}
-
-deleteFromTable() {
-    local db_dir="$connectedDbs"
-    local table_file
-    local schema_file
-    local col_names=()
-    local col_types=()
-    local pk_col
-    local value
-    local pk_value
-
-    tablename=""
-    read -p "Enter the name of the table to delete from: " tablename
-    tablename=$(echo "$tablename" | tr ' ' '_')
-
-    table_file="$db_dir/$tablename"
-    schema_file="$db_dir/$tablename.meta"
-
-    # Check if table exists
-    if [ -z "$tablename" ]
+    
+    if [ ! -d "$tablename" ]
     then
-        echo "Empty input"
+        echo "Table Doesn't Exist"
         return
     fi
-    if [ ! -e "$table_file" ]; then
-        echo "Table does not exist!"
+    
+    if [ -s "$tablename/$$tableName.txt" ]
+    then
+        echo "The $tablename is empty."
         return
     fi
-
-    # Read schema file and determine the columns and types
-    while IFS=: read col_name col_type; do
-        if [[ "$col_name" =~ primary_key* ]]; then
-            pk_col="${col_type}"
-        else
-            col_names+=("$col_name")
-            col_types+=("$col_type")
-        fi
-    done < "$schema_file"
-
-    # Display menu options
-    echo "Select deletion option:"
-    echo "1) Delete by ID (Primary Key)"
-    echo "2) Delete by Column"
-    echo "3) Delete All Rows"
-    read -p "Enter your choice (1/2/3): " delete_option
-
-    case "$delete_option" in
-    1)
-        # Delete by ID (Primary Key)
-        if [[ -z "$pk_col" ]]; then
-            echo "Error: No primary key defined for this table."
-            return
-        fi
-        
-        read -p "Enter the primary key value to delete: " pk_value
-
-        deletedRow="$pk_col:$pk_value"
-        tableFile="./$connectedDbs/$tablename"
-
-        grep "$deletedRow" $tableFile
-        if [ $? == 1 ]; then
-            echo "No matching rows found to delete."
-            return
-        fi
-
-        sed -i "/$deletedRow/d" "$tableFile"        
-        echo "Matching rows has been Deleted."
-        ;;
-    2)
-        read -p "Enter the column name to filter by: " column_name
-
-        if ! [[ " ${col_names[@]} " =~ " $column_name " ]]; then
-                echo "Error: Column '$column_name' does not exist."
-                return
-        fi
-
-        read -p "Enter the value to filter by: " value
-
-        column_index=$(echo "${col_names[@]}" | tr ' ' '\n' | grep -n "^$column_name$" | cut -d: -f1)
-        column_index=$((column_index - 1))
-        column_type="${col_types[$column_index]}"
-
-        case "$column_type" in
-            int)
-                if ! [[ "$value" =~ ^[0-9]+$ ]]; then
-                    echo "Error: Value for column '$column_name' must be an integer."
-                    return
-                fi
-                ;;
-            string)
-                if [[ -z "$value" ]]; then
-                    echo "Error: Value for column '$column_name' must not be empty."
-                    return
-                fi
-                ;;
-            *)
-                echo "Error: Unknown data type for column '$column_name'."
-                return
-                ;;
-        esac
-
-
-        deletedRow="$column_name:$value"
-        tableFile="./$connectedDbs/$tablename"
-        
-        grep "$deletedRow" $tableFile
-        if [ $? == 1 ]; then
-            echo "No matching rows found to delete."
-            return
-        fi
-
-        sed -i "/$deletedRow/d" "$tableFile"        
-        echo "Matching rows has been Deleted."
-    ;;
-    3)
-        > "$table_file"
-        echo "All rows have been deleted."
-        return
-        ;;
-    *)
-        echo "Invalid option selected."
-        return
-        ;;
-    esac
+    
+    tail -1 ${tablename}/${tablename}-meta.txt | sed 's/:/\t/g'
+    sed 's/:/\t/g'  ${tablename}/${tablename}.txt && echo
+    
 }
 
-echo "Hello in your $connectedDbs database what would you like to do: "
-select command in CreateTable ListTables DropTable InsertIntoTables SelectFromTable UpdateTable DeleteFromTable QuitFromDB
-do
-case $command in 
-"CreateTable" )
-	createTable
-    ;;
-"ListTables")
-		output=$(ls ./$connectedDbs)
-		if [[ $output ]]
-		then
-			echo $output
-		else
-			echo "No tables exists yet. "
-		fi
-;;
-"DropTable")
+DropTable(){
 	read -p "Enter the name of the table you want to drop: " tablename
 	if [ -z $tablename ]
 	then
@@ -355,19 +153,51 @@ case $command in
 			echo "Table '$tablename' does not exist."
 		fi
 	fi
+}
+listTables(){
+	output=$(ls ./$connectedDbs)
+		if [[ $output ]]
+		then
+			echo $output
+		else
+			echo "No tables exists yet. "
+		fi
+}
+UpdateTable(){
+echo "update"
+}
+DeleteFromTable(){
+echo "delete"
+}
+
+echo "Hello in your $connectedDbs database what would you like to do: "
+select command in CreateTable ListTables DropTable InsertIntoTables SelectFromTable UpdateTable DeleteFromTable QuitFromDB
+do
+case $command in 
+"CreateTable" )
+		createTable
+    ;;
+"ListTables")
+		listTables
+;;
+"DropTable")
+		DropTable
+	
 	;;
 "InsertIntoTables")
 	insertIntoTable
 ;;
 
 "SelectFromTable")
+   		selectFromTable
 ;;
 
 "UpdateTable")
+		UpdateTable
 
 ;;
-"DeleteFromTable")
-    deleteFromTable
+"DeleteFromTable ")
+		DeleteFromTable
 ;;
 "QuitFromDB")
 	echo "Exiting from $connectedDbs database. "
