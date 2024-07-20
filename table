@@ -105,23 +105,15 @@ insertIntoTable() {
     table_file="$db_dir/$tablename"
     schema_file="$db_dir/$tablename.meta"
 
-    # Check if table exists
     if [ ! -e "$table_file" ]; then
         echo "Table does not exist!"
         return
     fi
 
-     while IFS=: read -r col_name col_type; do
-        # Trim leading and trailing whitespace from column name and type
-        col_name=$(echo "$col_name" | xargs)
-        col_type=$(echo "$col_type" | xargs)
-
-        # Debugging output
-        #echo "Read schema line: '$col_name:$col_type'"
+     while IFS=: read col_name col_type; do
 
         # Handle primary key
         if [[ "$col_name" == primary_key* ]]; then
-          	# pk_col=$(grep "primary_key" ./$schema_file | cut -d ":" -f 2)
             pk_col=$col_type
         else
             col_names+=("$col_name")
@@ -167,16 +159,17 @@ insertIntoTable() {
                     break
                     ;;
             esac
-            data+=("$value")
+            record+=("$value")
         done
-        
+        echo ${data[@]}
+
         if [ "$valid" = true ]; then
             # Check if primary key value is unique
             if [[ -n "$pk_col" ]]; then
                 echo "${col_names[@]}"
                 pk_index=$(echo "${col_names[@]}" | tr ' ' '\n' | grep -n "^$pk_col$" | cut -d: -f1)
-                echo "$pk_index"
-                pk_value="${data[$((pk_index - 1))]}"
+
+                pk_value="${record[$((pk_index - 1))]}"
 
                 echo "Checking for primary key value: $pk_col:$pk_value"
 
@@ -189,8 +182,9 @@ insertIntoTable() {
             line=""
             for i in "${!col_names[@]}"
             do
-                line+="${col_names[$i]}:${data[$i]},"
+                line+="${col_names[$i]}:${record[$i]},"
             done
+
             # Remove the trailing comma
             line=${line%,}
             echo "$line"
@@ -237,7 +231,7 @@ deleteFromTable() {
 
     # Read schema file and determine the columns and types
     while IFS=: read col_name col_type; do
-        if [[ "$col_name" == primary_key* ]]; then
+        if [[ "$col_name" =~ primary_key* ]]; then
             pk_col="${col_type}"
         else
             col_names+=("$col_name")
@@ -262,9 +256,9 @@ deleteFromTable() {
         
         read -p "Enter the primary key value to delete: " pk_value
 
-        deletedRow="$column_name:$value"
+        deletedRow="$pk_col:$pk_value"
         tableFile="./$connectedDbs/$tablename"
-        
+
         grep "$deletedRow" $tableFile
         if [ $? == 1 ]; then
             echo "No matching rows found to delete."
@@ -275,7 +269,6 @@ deleteFromTable() {
         echo "Matching rows has been Deleted."
         ;;
     2)
-        # Delete by Column
         read -p "Enter the column name to filter by: " column_name
 
         if ! [[ " ${col_names[@]} " =~ " $column_name " ]]; then
@@ -285,7 +278,6 @@ deleteFromTable() {
 
         read -p "Enter the value to filter by: " value
 
-        # Validate the value based on the column type
         column_index=$(echo "${col_names[@]}" | tr ' ' '\n' | grep -n "^$column_name$" | cut -d: -f1)
         column_index=$((column_index - 1))
         column_type="${col_types[$column_index]}"
@@ -323,7 +315,6 @@ deleteFromTable() {
         echo "Matching rows has been Deleted."
     ;;
     3)
-        # Delete All Rows
         > "$table_file"
         echo "All rows have been deleted."
         return
