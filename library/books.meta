@@ -1,0 +1,5 @@
+book_id:int
+primary_key:book_id
+book_name:string
+Description:string
+book_author:string
