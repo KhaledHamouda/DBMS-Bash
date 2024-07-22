@@ -1,4 +1,9 @@
 #! /bin/bash
+
+
+callDBManagementSystem() {
+    ~/DBMS-Bash/dbms
+}
 connectedDbs=$1
 function validateArgument {
     if [ -z "$1" ]
@@ -246,105 +251,92 @@ selectFromTable() {
     local col_names=()
     local col_types=()
     local pk_col
-    local select_col
-    local select_val
-    local line
+    local select_option
+    local column
+    local value
+    local output
 
-    while true; do
-        read -p "Enter the name of the table to select from: " tablename
-        if ! validateArgument "$tablename"; then
-            continue
-        fi
-        tablename=$(echo "$tablename" | tr ' ' '_')
-        
-        table_file="$db_dir/$tablename"
-        schema_file="$db_dir/$tablename.meta"
+    read -p "Enter the name of the table to select from: " tablename
 
-        # Check if table exists
-        if [ ! -e "$table_file" ]; then
-            echo "Table '$tablename' does not exist!"
-            continue
-        fi
-
-        # Read schema to get column names and types using delemater (:)      
-        while IFS=: read -r col_name col_type; do                               
-            # Trim leading and trailing whitespace from column name and type and can read it from user
-            col_name=$(echo "$col_name" | xargs)
-            col_type=$(echo "$col_type" | xargs)
-
-            # Handle primary key
-            if [[ "$col_name" == primary_key* ]]; then
-                pk_col=$col_type
-            else
-                col_names+=("$col_name")
-                col_types+=("$col_type")
-            fi
-        done < "$schema_file"
-
-        break
-    done
-
-    # Prompt user for column and value to select
-    while true; do
-    read -p "Enter the column name to select (leave blank to select all): " select_col
-    if [[ -n "$select_col" ]]; then
-        # Validate column name
-        if ! validateArgument "$select_col"; then
-            continue
-        fi
-        # Check if column exists in schema
-        if ! [[ " ${col_names[@]} " =~ " $select_col " ]]; then
-            echo "Column '$select_col' does not exist in the table."
-            continue
-        fi
+    if [ -z "$tablename" ]; then
+        return
     fi
 
-    read -p "Enter the value to select (leave blank to select all): " select_val
-    # Validate value
-    if [[ -n "$select_val" ]]; then
-        # Trim leading and trailing whitespace
-        select_val=$(echo "$select_val" | xargs)
-        # Validate if value is empty after trimming
-        if [[ -z "$select_val" ]]; then
-            echo "Invalid input. Value cannot be empty after trimming."
-            break
-        fi
+    tablename=$(echo "$tablename" | tr ' ' '_')
+
+    table_file="$db_dir/$tablename"
+    schema_file="$db_dir/$tablename.meta"
+
+    if [ ! -e "$table_file" ]; then
+        echo "Table '$tablename' does not exist!"
+        return
     fi
 
-    # Print column headers
-    printf "%s\t" "${col_names[@]}"
-    echo # New line
+    if [ ! -e "$schema_file" ]; then
+        echo "Schema file for table '$tablename' does not exist!"
+        return
+    fi
 
-    # Read each line from the table file
-    while IFS=, read -r line; do
-        # Check if line matches selection criteria
-        if [[ -z "$select_col" || -z "$select_val" || $(echo "$line" | grep -w "$select_col:$select_val") ]]; then
-            # Split line into columns
-            IFS=',' read -r -a columns <<< "$line"
-            for col in "${columns[@]}"; do
-                # Print each column value
-                printf "%s\t" "$col"
-            done
-            echo # New line
+    # Read schema file to get column names and types
+    while IFS=: read -r col_name col_type; do
+        if [[ "$col_name" == primary_key* ]]; then
+            pk_col=$col_type
+        else
+            col_names+=("$col_name")
+            col_types+=("$col_type")
         fi
-    done < "$table_file"
+    done < "$schema_file"
 
-    while true; do
-        read -p "Do you want to select more data? (yes/no): " more
-        case "$more" in
-            yes)
-                break ;;
-            no)
-                echo "Finished selecting data."
-                return ;;
+    # Debugging: Print column names and types
+    echo "Column Names: ${col_names[@]}"
+    echo "Column Types: ${col_types[@]}"
+
+    PS3="Select an option: "
+    options=("Select All Rows" "Select by Column" "Back to Main Menu")
+    select select_option in "${options[@]}"; do
+        case "$select_option" in
+            "Select All Rows")
+                output=$(cat "$table_file")
+                if [[ -n "$output" ]]; then
+                    echo -e "All Rows:\n$output"
+                else
+                    echo "No data found in the table."
+                fi
+                ;;
+            "Select by Column")
+                select_column_menu
+                ;;
+            "Back to Main Menu")
+                return
+                ;;
             *)
-                echo "Invalid input. Please enter 'yes' or 'no'."
+                echo "Invalid option. Please select a valid option."
                 ;;
         esac
     done
-done     
 }
-
+select_column_menu() {
+    PS3="Select a column to filter by: "
+    select column in "${col_names[@]}"; do
+        if [ -n "$column" ]; then
+            read -p "Enter the value to select by (Column: $column): " value
+            if [ -n "$value" ]; then
+                echo "Selected Column: $column, Value: $value"
+                output=$(grep "$column:$value" "$table_file")
+                if [[ -n "$output" ]]; then
+                    echo -e "Matching Rows:\n$output"
+                else
+                    echo "No matching rows found."
+                fi
+            else
+                echo "Invalid input. Value cannot be empty."
+            fi
+            break
+        else
+            echo "Invalid column selection. Please select a valid column."
+        fi
+    done
+}
 # Function to update data in the table for a selected column
 updateTable() {
     local db_dir="$connectedDbs"
@@ -412,12 +404,16 @@ updateTable() {
         if ! validateArgument "$update_col"; then
             continue
         fi
-        # Validate column name
-        if ! [[ " ${col_names[@]} " =~ " $update_col " ]]; then
-            echo "Column '$update_col' does not exist in the table."
-            continue
-        else
+        # Validate column name and ensure it's not the primary key column
+        if [[ " ${col_names[@]} " =~ " $update_col " && "$update_col" != "$pk_col" ]]; then
             break
+        else
+            if [[ "$update_col" == "$pk_col" ]]; then
+                echo "Error: Updating the primary key column '$pk_col' directly is not allowed."
+            else
+                echo "Column '$update_col' does not exist in the table or cannot be updated."
+            fi
+            continue
         fi
     done
 
@@ -441,6 +437,7 @@ updateTable() {
     echo "Updated column '$update_col' with value '$update_val' where primary key '$pk_col' is '$pk_val'."
     echo "Update Success."
 }
+
 
 
 deleteFromTable() {
@@ -633,3 +630,4 @@ case $command in
 echo "Invalid Selection"
 esac
 done
+callDBManagementSystem
