@@ -121,6 +121,7 @@ ListTables(){
 
 
 }
+# insert table
 insertIntoTable() {
     local db_dir="$connectedDbs"
     local tablename
@@ -139,15 +140,23 @@ insertIntoTable() {
     table_file="$db_dir/$tablename"
     schema_file="$db_dir/$tablename.meta"
 
+    # Check if table exists
     if [ ! -e "$table_file" ]; then
         echo "Table does not exist!"
         return
     fi
 
-     while IFS=: read col_name col_type; do
+     while IFS=: read -r col_name col_type; do
+        # Trim leading and trailing whitespace from column name and type
+        col_name=$(echo "$col_name" | xargs)
+        col_type=$(echo "$col_type" | xargs)
+
+        # Debugging output
+        #echo "Read schema line: '$col_name:$col_type'"
 
         # Handle primary key
         if [[ "$col_name" == primary_key* ]]; then
+          	# pk_col=$(grep "primary_key" ./$schema_file | cut -d ":" -f 2)
             pk_col=$col_type
         else
             col_names+=("$col_name")
@@ -193,17 +202,16 @@ insertIntoTable() {
                     break
                     ;;
             esac
-            record+=("$value")
+            data+=("$value")
         done
-        echo ${data[@]}
-
+        
         if [ "$valid" = true ]; then
             # Check if primary key value is unique
             if [[ -n "$pk_col" ]]; then
                 echo "${col_names[@]}"
                 pk_index=$(echo "${col_names[@]}" | tr ' ' '\n' | grep -n "^$pk_col$" | cut -d: -f1)
-
-                pk_value="${record[$((pk_index - 1))]}"
+                echo "$pk_index"
+                pk_value="${data[$((pk_index - 1))]}"
 
                 echo "Checking for primary key value: $pk_col:$pk_value"
 
@@ -216,9 +224,8 @@ insertIntoTable() {
             line=""
             for i in "${!col_names[@]}"
             do
-                line+="${col_names[$i]}:${record[$i]},"
+                line+="${col_names[$i]}:${data[$i]},"
             done
-
             # Remove the trailing comma
             line=${line%,}
             echo "$line"
