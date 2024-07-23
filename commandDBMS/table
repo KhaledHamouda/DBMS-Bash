@@ -468,7 +468,7 @@ deleteFromTable() {
     fi
 
     # Read schema file and determine the columns and types
-    while IFS=: read col_name col_type; do
+    while IFS=: read -r col_name col_type; do
         if [[ "$col_name" == primary_key* ]]; then
             pk_col="${col_type}"
         else
@@ -494,7 +494,7 @@ deleteFromTable() {
         
         read -p "Enter the primary key value to delete: " pk_value
 
-        deletedRow="$column_name:$value"
+        deletedRow="$pk_col:$pk_value"
         tableFile="./$connectedDbs/$tablename"
         
         grep "$deletedRow" $tableFile
@@ -510,7 +510,7 @@ deleteFromTable() {
         # Delete by Column
         read -p "Enter the column name to filter by: " column_name
 
-        if ! [[ " ${col_names[@]} " =~ " $column_name " ]]; then
+        if [[ ! " ${col_names[@]} " =~ " $column_name " ]]; then
                 echo "Error: Column '$column_name' does not exist."
                 return
         fi

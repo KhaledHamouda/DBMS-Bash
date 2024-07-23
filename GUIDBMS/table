@@ -233,14 +233,14 @@ deleteFromTable() {
     fi
 
     # Read schema file and determine the columns and types
-    while IFS=: read col_name col_type; do
+    while IFS=: read -r col_name col_type; do
         if [[ "$col_name" =~ primary_key* ]]; then
             pk_col="${col_type}"
         else
             col_names+=("$col_name")
             col_types+=("$col_type")
         fi
-    done < "$schema_file"
+    done < "$schema_file"  
 
     # Display menu options
     delete_option=$(zenity --list --title="Select Deletion Option" --column="Option" --column="Description" \
