@@ -1,8 +1,32 @@
 #! /bin/bash
 
+
+callDBManagementSystem() {
+    ~/DBMS-Bash/dbms
+}
 connectedDbs=$1
+function validateArgument {
+    if [ -z "$1" ]
+    then
+        echo "The name field cannot be left empty"
+        return 1
+    elif [[ "$1" =~ ^[0-9] ]]
+    then
+        echo "Name should not begin with a number"
+        return 1
+    elif [[ "$1" = *" "* ]]
+    then
+        echo "Name Shouldn't Have Spaces"
+        return 1
+    elif [[ "$1" =~ [^a-zA-Z0-9_] ]]
+    then
+        echo "Name Shouldn't Have Special Characters"
+        return 1
+    fi
+}
 
 # function to create table
+ps3="Enter Option"
 createTable(){
 	local db_dir="$connectedDbs"
     local tablename
@@ -85,8 +109,18 @@ createTable(){
     done
 }
 
+# list tables
+ListTables(){
+	output=$(ls ./$connectedDbs | grep -v ".meta")
+			if [[ $output ]]
+			then
+				echo $output
+			else
+				echo "No tables exists yet. "
+			fi
 
-# Function to insert data into the table
+
+}
 insertIntoTable() {
     local db_dir="$connectedDbs"
     local tablename
@@ -200,6 +234,203 @@ insertIntoTable() {
         fi
     done
 }
+# Function to select data from the table
+selectFromTable() {
+    local db_dir="$connectedDbs"
+    local tablename
+    local table_file
+    local schema_file
+    local col_names=()
+    local col_types=()
+    local pk_col
+    local select_option
+    local column
+    local value
+    local output
+
+    read -p "Enter the name of the table to select from: " tablename
+
+    if [ -z "$tablename" ]; then
+        return
+    fi
+
+    tablename=$(echo "$tablename" | tr ' ' '_')
+
+    table_file="$db_dir/$tablename"
+    schema_file="$db_dir/$tablename.meta"
+
+    if [ ! -e "$table_file" ]; then
+        echo "Table '$tablename' does not exist!"
+        return
+    fi
+
+    if [ ! -e "$schema_file" ]; then
+        echo "Schema file for table '$tablename' does not exist!"
+        return
+    fi
+
+    # Read schema file to get column names and types
+    while IFS=: read -r col_name col_type; do
+        if [[ "$col_name" == primary_key* ]]; then
+            pk_col=$col_type
+        else
+            col_names+=("$col_name")
+            col_types+=("$col_type")
+        fi
+    done < "$schema_file"
+
+    # Debugging: Print column names and types
+    echo "Column Names: ${col_names[@]}"
+    echo "Column Types: ${col_types[@]}"
+
+    PS3="Select an option: "
+    options=("Select All Rows" "Select by Column" "Back to Main Menu")
+    select select_option in "${options[@]}"; do
+        case "$select_option" in
+            "Select All Rows")
+                output=$(cat "$table_file")
+                if [[ -n "$output" ]]; then
+                    echo -e "All Rows:\n$output"
+                else
+                    echo "No data found in the table."
+                fi
+                ;;
+            "Select by Column")
+                select_column_menu
+                ;;
+            "Back to Main Menu")
+                return
+                ;;
+            *)
+                echo "Invalid option. Please select a valid option."
+                ;;
+        esac
+    done
+}
+select_column_menu() {
+    PS3="Select a column to filter by: "
+    select column in "${col_names[@]}"; do
+        if [ -n "$column" ]; then
+            read -p "Enter the value to select by (Column: $column): " value
+            if [ -n "$value" ]; then
+                echo "Selected Column: $column, Value: $value"
+                output=$(grep "$column:$value" "$table_file")
+                if [[ -n "$output" ]]; then
+                    echo -e "Matching Rows:\n$output"
+                else
+                    echo "No matching rows found."
+                fi
+            else
+                echo "Invalid input. Value cannot be empty."
+            fi
+            break
+        else
+            echo "Invalid column selection. Please select a valid column."
+        fi
+    done
+}
+# Function to update data in the table for a selected column
+updateTable() {
+    local db_dir="$connectedDbs"
+    local tablename
+    local table_file
+    local schema_file
+    local col_names=()
+    local col_types=()
+    local pk_col
+    local update_col
+    local update_val
+    local pk_val
+    local line
+    local temp_file="/tmp/update_temp.$$"
+
+    while true; do
+        read -p "Enter the name of the table to update: " tablename
+        if ! validateArgument "$tablename"; then
+            continue
+        fi
+        tablename=$(echo "$tablename" | tr ' ' '_')
+
+        table_file="$db_dir/$tablename"
+        schema_file="$db_dir/$tablename.meta"
+
+        # Check if table exists
+        if [ ! -e "$table_file" ]; then
+            echo "Table '$tablename' does not exist!"
+            continue
+        fi
+
+        # Read schema to get column names and types
+        while IFS=: read -r col_name col_type; do
+            # Trim leading and trailing whitespace from column name and type
+            col_name=$(echo "$col_name" | xargs)
+            col_type=$(echo "$col_type" | xargs)
+
+            # Handle primary key
+            if [[ "$col_name" == primary_key* ]]; then
+                pk_col=$col_type
+            else
+                col_names+=("$col_name")
+                col_types+=("$col_type")
+            fi
+        done < "$schema_file"
+
+        break
+    done
+
+    # Prompt user for primary key value to update
+    while true; do
+        read -p "Enter the value of the primary key to update: " pk_val
+        # Check if the primary key value exists in the table
+        if ! grep -q "${pk_col}:${pk_val}" "$table_file"; then
+            echo "Primary key value '$pk_val' does not exist in the table."
+            continue
+        else
+            break
+        fi
+    done
+
+    # Prompt user for column to update
+    while true; do
+        read -p "Enter the column name to update: " update_col
+        if ! validateArgument "$update_col"; then
+            continue
+        fi
+        # Validate column name and ensure it's not the primary key column
+        if [[ " ${col_names[@]} " =~ " $update_col " && "$update_col" != "$pk_col" ]]; then
+            break
+        else
+            if [[ "$update_col" == "$pk_col" ]]; then
+                echo "Error: Updating the primary key column '$pk_col' directly is not allowed."
+            else
+                echo "Column '$update_col' does not exist in the table or cannot be updated."
+            fi
+            continue
+        fi
+    done
+
+    # Prompt user for new value
+    read -p "Enter the new value for column '$update_col': " update_val
+
+    # Perform the update operation
+    awk -v col_name="$update_col" -v col_val="$update_val" -v pk_col="$pk_col" -v pk_val="$pk_val" -F ',' '{
+        if ($1 == pk_col ":" pk_val) {
+            for (i = 2; i <= NF; i++) {
+                split($i, arr, ":")
+                if (arr[1] == col_name) {
+                    $i = col_name ":" col_val
+                    break
+                }
+            }
+        }
+        print $0
+    }' "$table_file" > "$temp_file" && mv "$temp_file" "$table_file"
+
+    echo "Updated column '$update_col' with value '$update_val' where primary key '$pk_col' is '$pk_val'."
+    echo "Update Success."
+}
+
+
 
 deleteFromTable() {
     local db_dir="$connectedDbs"
@@ -231,7 +462,7 @@ deleteFromTable() {
 
     # Read schema file and determine the columns and types
     while IFS=: read col_name col_type; do
-        if [[ "$col_name" =~ primary_key* ]]; then
+        if [[ "$col_name" == primary_key* ]]; then
             pk_col="${col_type}"
         else
             col_names+=("$col_name")
@@ -256,9 +487,9 @@ deleteFromTable() {
         
         read -p "Enter the primary key value to delete: " pk_value
 
-        deletedRow="$pk_col:$pk_value"
+        deletedRow="$column_name:$value"
         tableFile="./$connectedDbs/$tablename"
-
+        
         grep "$deletedRow" $tableFile
         if [ $? == 1 ]; then
             echo "No matching rows found to delete."
@@ -269,6 +500,7 @@ deleteFromTable() {
         echo "Matching rows has been Deleted."
         ;;
     2)
+        # Delete by Column
         read -p "Enter the column name to filter by: " column_name
 
         if ! [[ " ${col_names[@]} " =~ " $column_name " ]]; then
@@ -278,6 +510,7 @@ deleteFromTable() {
 
         read -p "Enter the value to filter by: " value
 
+        # Validate the value based on the column type
         column_index=$(echo "${col_names[@]}" | tr ' ' '\n' | grep -n "^$column_name$" | cut -d: -f1)
         column_index=$((column_index - 1))
         column_type="${col_types[$column_index]}"
@@ -315,6 +548,7 @@ deleteFromTable() {
         echo "Matching rows has been Deleted."
     ;;
     3)
+        # Delete All Rows
         > "$table_file"
         echo "All rows have been deleted."
         return
@@ -325,55 +559,67 @@ deleteFromTable() {
         ;;
     esac
 }
+#DropTable
+DropTable(){
+		read -p "Enter the name of the table you want to drop: " tablename
+		
+		tablename=$(echo "$tablename" | tr ' ' '_')
+
+	    if [[ ! "$tablename" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
+		echo "Invalid table name. It should start with a letter and contain only letters, numbers, and underscores."
+		return
+	    fi
+		if [ -z $tablename ]
+		then
+			echo "Empty input."
+		else
+			if [ -f ./"$connectedDbs/$tablename" ]; then
+				rm ./"$connectedDbs/$tablename"
+				echo "Table '$tablename' has been deleted successfully."
+			else
+				echo "Table '$tablename' does not exist."
+			fi
+		fi
+
+}
 
 echo "Hello in your $connectedDbs database what would you like to do: "
-select command in CreateTable ListTables DropTable InsertIntoTables SelectFromTable UpdateTable DeleteFromTable QuitFromDB
+select command in CreateTable ListTables DropTable InsertIntoTables SelectTable UpdateTable DeleteFromTable QuitFromDB
 do
 case $command in 
 "CreateTable" )
-	createTable
+	       createTable
     ;;
 "ListTables")
-		output=$(ls ./$connectedDbs)
-		if [[ $output ]]
-		then
-			echo $output
-		else
-			echo "No tables exists yet. "
-		fi
+		ListTables
 ;;
 "DropTable")
-	read -p "Enter the name of the table you want to drop: " tablename
-	if [ -z $tablename ]
-	then
-		echo "Empty input."
-	else
-		if [ -f ./"$connectedDbs/$tablename" ]; then
-			rm ./"$connectedDbs/$tablename"
-			echo "Table '$tablename' has been deleted successfully."
-		else
-			echo "Table '$tablename' does not exist."
-		fi
-	fi
+	DropTable
 	;;
 "InsertIntoTables")
-	insertIntoTable
+	   insertIntoTable
 ;;
 
-"SelectFromTable")
+"SelectTable")
+             selectFromTable
 ;;
+
 
 "UpdateTable")
+             updateTable
 
 ;;
 "DeleteFromTable")
-    deleteFromTable
+                 deleteFromTable
 ;;
 "QuitFromDB")
 	echo "Exiting from $connectedDbs database. "
-	break 
+	     break
+	     
+	     
 ;;
 *)
 echo "Invalid Selection"
 esac
 done
+callDBManagementSystem
